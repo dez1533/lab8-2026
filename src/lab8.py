@@ -1,115 +1,122 @@
-import psycopg2
 import os
+import sqlite3
 
-# --- DANGER ZONE ---
-# PASSWORD stored in plain text. This is not secure.
-# In a real-world application, use environment variables
-# or a secret management service.
-# For this lab, you can set an environment variable:
-# export DB_PASSWORD='your_password'
-# --- /DANGER ZONE ---
+# Працюємо у тій самій папці, де лежить скрипт lab8.py
+os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
-# --- STUDENT TODO: ---
-# 1. Replace 'your_database' with the name of your database
-# 2. Replace 'your_user' with your database username (often 'postgres')
-# 3. Replace 'your_password' with your database password
-# 4. Replace 'your_host' with your database host (usually 'localhost')
-# 5. Replace 'your_port' with your database port (usually '5432' for PostgreSQL)
+DB_NAME = "university.db"
 
-DB_NAME = "your_database"
-DB_USER = "postgres"
-DB_PASS = os.getenv("DB_PASSWORD", "your_password") # Fallback to insecure default
-DB_HOST = "localhost"
-DB_PORT = "5432"
+
+def print_teachers(cursor, title):
+    """Допоміжна функція для красивого виведення вмісту таблиці."""
+    print(f"\n--- {title} ---")
+    cursor.execute("SELECT * FROM teachers")
+    rows = cursor.fetchall()
+    if not rows:
+        print("Таблиця порожня.")
+        return
+    for row in rows:
+        print(
+            f"ID: {row[0]} | Ім'я: {row[1]} {row[2]} | "
+            f"Кафедра: {row[3]} | Посада: {row[4]} | Дата найму: {row[5]}"
+        )
+
 
 def main():
-    """
-    Main function to connect to the database and perform operations.
-    Students should modify this function to complete their lab assignments.
-    """
-    conn = None  # Initialize conn to None
+    conn = None
+    cur = None
     try:
-        # Establish the connection
-        conn = psycopg2.connect(
-            database=DB_NAME,
-            user=DB_USER,
-            password=DB_PASS,
-            host=DB_HOST,
-            port=DB_PORT
-        )
-        print("Database connected successfully")
+        # 1-2. Підключення до бази даних «Університет» (створюється автоматично)
+        conn = sqlite3.connect(DB_NAME)
+        print(f"Успішно підключено до бази даних '{DB_NAME}'")
         cur = conn.cursor()
 
-        # --- STUDENT TODO: Task 3 - Create Table ---
-        # Write your SQL query to create a table.
-        # Example for 'students' table:
-        # create_table_query = """
-        # CREATE TABLE IF NOT EXISTS students (
-        #     id SERIAL PRIMARY KEY,
-        #     name VARCHAR(100) NOT NULL,
-        #     age INTEGER,
-        #     admission_date DATE
-        # );
-        # """
-        # cur.execute(create_table_query)
-        # conn.commit()
-        # print("Table 'students' created successfully.")
+        # Очищаємо таблицю перед запуском, щоб скрипт можна було запускати багато разів без помилок
+        cur.execute("DROP TABLE IF EXISTS teachers")
 
-        # --- STUDENT TODO: Task 4 - Insert Data ---
-        # Write your SQL query to insert data.
-        # Use executemany for multiple inserts.
-        # Example for 'students' table:
-        # insert_query = "INSERT INTO students (name, age, admission_date) VALUES (%s, %s, %s);"
-        # student_data = [
-        #     ('John Doe', 20, '2023-09-01'),
-        #     ('Jane Smith', 22, '2022-09-01'),
-        #     ('Alice Johnson', 19, '2024-09-01'),
-        #     ('Bob Williams', 21, '2023-09-01'),
-        #     ('Anna Brown', 20, '2022-09-01')
-        # ]
-        # cur.executemany(insert_query, student_data)
-        # conn.commit()
-        # print(f"{cur.rowcount} records inserted successfully.")
+        # 3. Створення таблиці «Викладачі» (teachers) з різними типами даних (INTEGER, VARCHAR, DATE)
+        create_table_query = """
+        CREATE TABLE teachers (
+            id INTEGER PRIMARY KEY,
+            first_name VARCHAR(100) NOT NULL,
+            last_name VARCHAR(100) NOT NULL,
+            department VARCHAR(150) NOT NULL,
+            position VARCHAR(100) NOT NULL,
+            hire_date DATE NOT NULL
+        );
+        """
+        cur.execute(create_table_query)
+        conn.commit()
+        print("Таблицю 'teachers' успішно створено.")
 
-        # --- STUDENT TODO: Task 5 - Update Data ---
-        # Write your SQL query to update data.
-        # Example for 'students' table:
-        # update_query = "UPDATE students SET age = 21 WHERE name = 'John Doe';"
-        # cur.execute(update_query)
-        # conn.commit()
-        # print(f"{cur.rowcount} record(s) updated successfully.")
+        # 4. Вставка принаймні 5 рядків даних
+        insert_query = """
+        INSERT INTO teachers (id, first_name, last_name, department, position, hire_date)
+        VALUES (?, ?, ?, ?, ?, ?);
+        """
+        teachers_data = [
+            (1, "Олександр", "Коваленко", "Інформаційних технологій", "Професор", "2015-09-01"),
+            (2, "Ірина", "Шевченко", "Кібербезпеки та комп'ютерної інженерії", "Доцент", "2018-02-15"),
+            (3, "Максим", "Бондаренко", "Інформаційних технологій", "Старший викладач", "2020-09-01"),
+            (4, "Наталія", "Ткаченко", "Вищої математики", "Асистент", "2023-09-01"),
+            (5, "Андрій", "Мельник", "Інформаційних технологій", "Доцент", "2019-11-10"),
+        ]
+        cur.executemany(insert_query, teachers_data)
+        conn.commit()
+        print("Дані про 5 викладачів успішно додано.")
+        print_teachers(cur, "Початковий список викладачів")
 
-        # --- STUDENT TODO: Task 6 - Delete Data ---
-        # Write your SQL query to delete data.
-        # Example for 'students' table:
-        # delete_query = "DELETE FROM students WHERE name = 'Jane Smith';"
-        # cur.execute(delete_query)
-        # conn.commit()
-        # print(f"{cur.rowcount} record(s) deleted successfully.")
+        # 5. Оновлення даних за певною умовою (підвищення посади для Максима Бондаренка)
+        update_query = """
+        UPDATE teachers
+        SET position = 'Доцент'
+        WHERE first_name = 'Максим' AND last_name = 'Бондаренко';
+        """
+        cur.execute(update_query)
+        conn.commit()
+        print("\nДані оновлено: Максим Бондаренко отримав посаду 'Доцент'.")
 
-        # --- STUDENT TODO: Task 7 - Select Data ---
-        # Write your SQL query to select data.
-        # Fetch and print the results.
-        # Example for 'students' table:
-        # select_query = "SELECT * FROM students ORDER BY age DESC;"
-        # cur.execute(select_query)
-        # records = cur.fetchall()
-        # print("\n--- Student Records ---")
-        # for record in records:
-        #     print(f"ID: {record[0]}, Name: {record[1]}, Age: {record[2]}, Admission Date: {record[3]}")
-        # print("-----------------------\n")
+        # 6. Видалення даних за певною умовою (видалення викладача з посадою 'Асистент')
+        delete_query = """
+        DELETE FROM teachers
+        WHERE position = 'Асистент';
+        """
+        cur.execute(delete_query)
+        conn.commit()
+        print("Дані видалено: викладача з посадою 'Асистент' видалено з бази.")
+        print_teachers(cur, "Список викладачів після оновлення та видалення")
 
-        # Remember to close the cursor
-        cur.close()
+        # 7. Вибірка даних з умовою та сортуванням
+        # Вибираємо викладачів кафедри 'Інформаційних технологій' і сортуємо за прізвищем за алфавітом
+        select_query = """
+        SELECT id, first_name, last_name, department, position, hire_date
+        FROM teachers
+        WHERE department = 'Інформаційних технологій'
+        ORDER BY last_name ASC;
+        """
+        cur.execute(select_query)
+        selected_teachers = cur.fetchall()
 
-    except (Exception, psycopg2.DatabaseError) as error:
-        print(f"Error while connecting to PostgreSQL: {error}")
+        print("\n--- Вибірка: викладачі кафедри 'Інформаційних технологій' (відсортовані за прізвищем) ---")
+        for t in selected_teachers:
+            print(
+                f"ID: {t[0]} | {t[2]} {t[1]} | "
+                f"Кафедра: {t[3]} | Посада: {t[4]} | Дата найму: {t[5]}"
+            )
 
+    except sqlite3.Error as error:
+        print("Помилка під час роботи з базою даних SQLite:", error)
+    except Exception as error:
+        print("Непередбачена помилка:", error)
     finally:
-        # Ensure the connection is closed
-        if conn is not None:
+        if cur:
+            cur.close()
+        if conn:
             conn.close()
-            print("Database connection closed.")
+            print("\nЗ'єднання з базою даних закрито.")
+
+    input("\nНатисніть Enter, щоб вийти...")
+
 
 if __name__ == "__main__":
     main()
